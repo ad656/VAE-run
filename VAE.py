@@ -191,6 +191,7 @@ def display_images(anatomical, fat_fraction, reconstructed, generated, epoch, st
     
     plt.tight_layout()
     plt.savefig("results.png")  # Save the image
+    plt.savefig(f"results/epoch_{epoch}_step_{step}.png")
     plt.close()
 
     plt.show()
