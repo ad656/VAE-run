@@ -62,6 +62,8 @@ class PairedNIIDataset(Dataset):
         return len(self.slices)
 
     def __getitem__(self, idx):
+        
+
         anatomical_path, fatfraction_path, mask_path, slice_idx, volume_id = self.slices[idx]
 
         # Load the entire 3D images
@@ -110,13 +112,13 @@ class Encoder(nn.Module):
             nn.Conv2d(input_channels, 32, kernel_size=4, stride=2, padding=1),  # Output: 64x64
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=1),  # Output: 32x32
-            nn.BatchNorm2d(64),
+            nn.InstanceNorm2d(64),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),  # Output: 16x16
-            nn.BatchNorm2d(128),
+            nn.InstanceNorm2d(128),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1),  # Output: 8x8
-            nn.BatchNorm2d(256),
+            nn.InstanceNorm2d(256),
             nn.LeakyReLU(0.2, inplace=True),
         )
         self.fc_mu = nn.Linear(256 * 8 * 8, latent_dim)
@@ -139,34 +141,34 @@ class Generator(nn.Module):
         # Encoder (downsampling path)
         self.enc1 = nn.Sequential(
             nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1),  # 8x8
-            nn.BatchNorm2d(256),
+            nn.InstanceNorm2d(256),
             nn.ReLU(inplace=True)
         )
         self.enc2 = nn.Sequential(
             nn.Conv2d(256, 512, kernel_size=4, stride=2, padding=1),  # 8x8 -> 4x4
-            nn.BatchNorm2d(512),
+            nn.InstanceNorm2d(512),
             nn.ReLU(inplace=True)
         )
 
         # Decoder (upsampling path)
         self.dec1 = nn.Sequential(
             nn.ConvTranspose2d(512, 256, kernel_size=4, stride=2, padding=1),  # 4x4 -> 8x8
-            nn.BatchNorm2d(256),
+            nn.InstanceNorm2d(256),
             nn.ReLU(inplace=True)
         )
         self.dec2 = nn.Sequential(
             nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1),   # 8x8 -> 16x16
-            nn.BatchNorm2d(128),
+            nn.InstanceNorm2d(128),
             nn.ReLU(inplace=True)
         )
         self.dec3 = nn.Sequential(
             nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),    # 16x16 -> 32x32
-            nn.BatchNorm2d(64),
+            nn.InstanceNorm2d(64),
             nn.ReLU(inplace=True)
         )
         self.dec4 = nn.Sequential(
             nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1),     # 32x32 -> 64x64
-            nn.BatchNorm2d(32),
+            nn.InstanceNorm2d(32),
             nn.ReLU(inplace=True)
         )
         self.final = nn.Sequential(
@@ -199,10 +201,10 @@ class Discriminator(nn.Module):
             nn.Conv2d(input_channels, 16, kernel_size=4, stride=2, padding=1),  # Reduced filters
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(16, 32, kernel_size=4, stride=2, padding=1),  # Output: 32x32
-            nn.BatchNorm2d(32),
+            nn.InstanceNorm2d(32),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=1),  # Output: 16x16
-            nn.BatchNorm2d(64),
+            nn.InstanceNorm2d(64),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Flatten(),
             nn.Linear(64 * 16 * 16, 1),  # Adjusted input size
@@ -363,12 +365,12 @@ if __name__ == '__main__':
                 fake_validity = discriminator(fake_fatfraction_image)
 
                 # Compute gradient penalty
-                gradient_penalty = compute_gradient_penalty(discriminator, real_fatfraction_image.data, fake_fatfraction_image.data)
+                gradient_penalty = compute_gradient_penalty(discriminator, real_fatfraction_image, fake_fatfraction_image)
 
                 # Wasserstein loss
-                d_loss = -torch.mean(real_validity) + torch.mean(fake_validity) + lambda_gp * gradient_penalty
+                d_loss = torch.mean(fake_validity) - torch.mean(real_validity) + lambda_gp * gradient_penalty
                 d_loss.backward()
-                torch.nn.utils.clip_grad_norm_(discriminator.parameters(), max_norm=10.0)
+                #torch.nn.utils.clip_grad_norm_(discriminator.parameters(), max_norm=5.0)
                 optimizer_D.step()
 
                 # Accumulate losses
@@ -392,7 +394,7 @@ if __name__ == '__main__':
             # Reconstruction loss and KL-divergence loss
             recon_loss = criterion_recon(fake_fatfraction_image, real_fatfraction_image) * recon_weight
             kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-            kl_loss /= anatomical_image.size(0) * 128 * 128
+            kl_loss /= anatomical_image.size(0) 
             kl_loss *= kl_weight
 
             # Perceptual loss
@@ -417,8 +419,8 @@ if __name__ == '__main__':
             # Total generator and encoder loss
             loss_G = g_adv_loss + recon_loss + kl_loss + p_loss + tv_loss
             loss_G.backward()
-            torch.nn.utils.clip_grad_norm_(encoder.parameters(), max_norm=10.0)
-            torch.nn.utils.clip_grad_norm_(generator.parameters(), max_norm=10.0)
+            torch.nn.utils.clip_grad_norm_(encoder.parameters(), max_norm=5.0)
+            torch.nn.utils.clip_grad_norm_(generator.parameters(), max_norm=5.0)
             optimizer_E.step()
             optimizer_G.step()
 
@@ -437,11 +439,11 @@ if __name__ == '__main__':
         epoch_duration = end_time - start_time
 
         # Calculate average losses for the epoch
-        avg_d_loss = epoch_d_loss / (num_batches * n_critic)
+        avg_d_loss = epoch_d_loss / (num_batches)
         avg_g_loss = epoch_g_loss / num_batches
         avg_recon_loss = epoch_recon_loss / num_batches
         avg_kl_loss = epoch_kl_loss / num_batches
-        avg_gp_loss = epoch_gp_loss / (num_batches * n_critic)
+        avg_gp_loss = epoch_gp_loss / (num_batches)
 
         d_losses.append(avg_d_loss)
         g_losses.append(avg_g_loss)
@@ -563,7 +565,7 @@ if __name__ == '__main__':
             pred_slice = (pred_slice + 1) / 2  # Rescale to [0, 1]
 
             # Mask out zero values (non-liver regions)
-            mask = real_slice > 0  # Assuming zero indicates non-liver
+            mask = real_slice != 0  # Assuming zero indicates non-liver
 
             # Debugging statements
             print(f"Volume ID: {volume_id}")
@@ -571,7 +573,7 @@ if __name__ == '__main__':
             print(f"Unique values in real_slice: {np.unique(real_slice)}")
             print(f"Mask sum (number of non-zero elements): {np.sum(mask)}")
 
-            real_slice = real_slice[mask]
+            real_slice = real_slice[mask] 
             pred_slice = pred_slice[mask]
 
             # Check if slices are empty after masking
