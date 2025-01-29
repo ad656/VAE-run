@@ -307,9 +307,9 @@ if __name__ == '__main__':
         param.requires_grad = False
 
     # Adjusted learning rates and weight decay
-    optimizer_E = optim.Adam(encoder.parameters(), lr=0.0001, betas=(0.5, 0.999))
-    optimizer_G = optim.Adam(generator.parameters(), lr=0.0001, betas=(0.5, 0.999))
-    optimizer_D = optim.Adam(discriminator.parameters(), lr=0.0001, betas=(0.5, 0.999))  # Reduced LR
+    optimizer_E = optim.Adam(encoder.parameters(), lr=0.0002, betas=(0.5, 0.999))
+    optimizer_G = optim.Adam(generator.parameters(), lr=0.0002, betas=(0.5, 0.999))
+    optimizer_D = optim.Adam(discriminator.parameters(), lr=0.0005, betas=(0.5, 0.999))  # Reduced LR
 
     # Learning rate schedulers
     scheduler_E = lr_scheduler.CosineAnnealingLR(optimizer_E, T_max=num_epochs)
@@ -317,11 +317,11 @@ if __name__ == '__main__':
     scheduler_D = lr_scheduler.CosineAnnealingLR(optimizer_D, T_max=num_epochs)
 
     # Loss weights
-    adversarial_weight = 1.0
-    recon_weight = 50.0
-    kl_weight = 0.01
-    perceptual_weight = 0.1
-    tv_weight = 0.1
+    adversarial_weight = 0.5
+    recon_weight = 100.0
+    kl_weight = 0.001
+    perceptual_weight = 1.0
+    tv_weight = 0.05
 
     # Initialize lists to store losses
     d_losses = []
@@ -330,8 +330,8 @@ if __name__ == '__main__':
     kl_losses = []
     gp_losses = []  # To store gradient penalty values
 
-    n_critic = 5  # Number of discriminator updates per generator update
-    lambda_gp = 10  # Gradient penalty coefficient
+    n_critic = 3 # Number of discriminator updates per generator update
+    lambda_gp = 15  # Gradient penalty coefficient
 
     # Training Loop
     for epoch in range(num_epochs):
