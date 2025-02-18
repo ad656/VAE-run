@@ -26,7 +26,7 @@ def read_csv_files_to_dataframe(directory):
     return combined_data
 
 # Directory containing your CSV files
-directory_path = "C:/Users/allan/Downloads/ugcsv"
+directory_path = "C:/Users/allan/Downloads/VAE/finalResults"
 
 # Read and process the CSV files
 result_df = read_csv_files_to_dataframe(directory_path)
