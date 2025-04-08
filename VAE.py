@@ -189,6 +189,12 @@ class Discriminator(nn.Module):
 
     def forward(self, x):
         return self.main(x)
+
+def reparameterize(mu, logvar):
+    std = torch.exp(0.5 * logvar)
+    eps = torch.randn_like(std)
+    return mu + eps * std
+
 def display_images(anatomical, fat_fraction, reconstructed, generated, epoch, device):
     fig, axes = plt.subplots(1, 3, figsize=(20, 5))
     images = [anatomical, fat_fraction, generated]
@@ -207,12 +213,9 @@ def display_images(anatomical, fat_fraction, reconstructed, generated, epoch, de
     save_dir = "results"
     plt.savefig(os.path.join(save_dir, filename))
     plt.close()
-def reparameterize(mu, logvar):
-    std = torch.exp(0.5 * logvar)
-    eps = torch.randn_like(std)
-    return mu + eps * std
 
 def compute_gradient_penalty(D, real_samples, fake_samples):
+    
     alpha = torch.rand(real_samples.size(0), 1, 1, 1, device=device)
     interpolates = (alpha * real_samples + (1 - alpha) * fake_samples).requires_grad_(True)
     d_interpolates = D(interpolates)
